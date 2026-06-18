@@ -119,7 +119,73 @@ probabilistes ou répartis entre des composants incapables de garanties fortes s
 adversariale. Cette ambiguïté architecturale rend possibles l'injection de prompt, le suivi
 d'instructions indirectes et l'escalade de privilèges par raisonnement.
 
-### 1.5 Positionnement et contributions
+### 1.5 Contexte stratégique : le conflit à vitesse machine et la faille héritée du défenseur
+
+Pendant trente ans, la cyberdéfense a été calibrée sur une hypothèse implicite : les
+attaques se déroulent assez lentement pour qu'un analyste humain observe, qualifie et
+décide. Le cycle d'escalade d'un centre de supervision (SOC) — alerte, tri, escalade,
+autorisation — prend des heures, parfois des jours. Les campagnes pilotées par IA agentique
+compriment en minutes ce qui exigeait des jours de travail spécialisé : reconnaissance,
+génération d'exploit, déplacement latéral et collecte d'identifiants s'enchaînent désormais
+à une cadence qui dépasse toute réponse avec humain dans la boucle. Quand l'attaquant agit
+plus vite que le défenseur, il contrôle le tempo de l'engagement — et donc l'engagement. La
+conséquence est structurelle : ni la Red Team offensive ni la Blue Team défensive humaines
+n'opéreront *dans la boucle* ; l'humain reste en amont (doctrine, autorisation) et en aval
+(revue, attribution, remédiation lourde), tandis que le cœur de l'engagement se joue entre
+agents autonomes — un champ de bataille « IA contre IA » sans humain dans la boucle
+[21], [22].
+
+Ce basculement n'est plus prospectif. En novembre 2025, Anthropic a divulgué ce qu'elle
+qualifie de première opération d'espionnage cyber à grande échelle largement orchestrée par
+une IA agentique : un acteur évalué avec une confiance élevée comme un groupe étatique
+chinois (désigné GTG-1002) a jailbreaké un outil de codage agentique par jeu de rôle — en se
+faisant passer pour une firme de sécurité légitime menant un test défensif — puis l'a
+connecté à des outils réels via le protocole MCP. L'IA a exécuté 80 à 90 % du déroulé contre
+une trentaine de cibles, avec un petit nombre d'intrusions réussies ; fait notable, sa
+principale limite fut les *hallucinations* du modèle, et non une défense [16]. La tendance
+est plus large : VILLAGER, outil de pentest « AI-native » bâti sur un modèle public et
+embarquant plus de 4 000 prompts d'exploitation ; l'acteur HexStrike exploitant la
+CVE-2025-7775 sur plus de 8 000 points d'extrémité en moins de dix minutes ; des chaînes de
+rançongiciel comprimées, de la compromission initiale à l'exfiltration, en environ
+25 minutes ; et des analyses alertant que les attaques pilotées par IA devancent déjà les
+défenses humaines sur les infrastructures critiques [20], [21].
+
+L'asymétrie est structurelle, et non un simple retard rattrapable. La réponse naturelle —
+automatiser la défense en confiant tri, corrélation, voire confinement à des agents — referme
+un piège, car ces agents héritent de la faille même que l'attaquant exploite. En octobre
+2025, des chercheurs de laboratoires de premier plan ont testé douze défenses publiées
+contre l'injection de prompt, la plupart revendiquant un taux de succès d'attaque quasi nul ;
+l'équipe en a franchi **plus de 90 %** [17]. Les compétitions publiques à grande échelle sur
+l'injection indirecte aboutissent au même verdict : les agents restent massivement perméables
+[19]. Automatiser la défense avec des LLM reproduit donc, côté défenseur, la faille même que
+l'attaquant exploite : l'adversaire n'a plus besoin de viser le réseau directement — il peut
+viser l'*agent superviseur*, qui voit tout. La surface d'attaque migre vers le défenseur.
+
+La racine est architecturale, non un bug corrigible par davantage d'entraînement. Un LLM ne
+dispose d'aucune frontière intrinsèque entre *instruction* et *donnée* : le prompt système et
+l'entrée utilisateur arrivent sous la même forme — des chaînes de langage naturel — et ne
+peuvent être distingués sur la base d'un type. Toute séparation n'est que *sémantique* :
+floue, contextuelle, donc exploitable. L'analyse de l'attention le confirme : lors d'une
+injection réussie, l'attention de certaines têtes se déplace de l'instruction d'origine vers
+l'instruction injectée [18]. Un LLM excelle à *traduire* et à *classer*, mais reste
+structurellement incapable de tenir un *état exact sur une séquence* — une limite
+d'expressivité qui ouvre les **attaques par accumulation**, où chaque tour paraît anodin et
+où la violation émerge de la composition, hors de portée d'un contrôle qui raisonne tour par
+tour. Corollaire direct : un LLM ne peut en contrôler un autre de façon fiable, le contrôleur
+souffrant de la même incapacité que le contrôlé. Empiler des couches d'IA défensive ajoute
+des surfaces vulnérables, non des garanties.
+
+C'est précisément la motivation de Lock-Monotone. Si l'on ne peut faire confiance au modèle
+pour se garder lui-même, il faut relocaliser la frontière de sécurité *hors* du modèle :
+cantonner le LLM à ses forces (traduire une intention, classer une entrée) et confier la
+*décision* à une couche déterministe, vérifiable et placée hors du chemin d'exécution réseau.
+La monotonie préfixale développée dans cet article stoppe les attaques par accumulation à une
+borne qu'aucune suite de tours ne peut repousser — parce que cette borne est *enforcée par
+une fonction*, non évaluée par un modèle. L'enjeu n'est pas de rendre le LLM « plus sûr »
+(objectif probablement hors d'atteinte), mais de garantir qu'une compromission éventuelle du
+modèle ne confère *aucune autorité* : le modèle propose, le déterministe dispose.
+
+### 1.6 Positionnement et contributions
 
 Lock-Monotone positionne les LLM comme des composants explicitement *non fiables* et
 probabilistes, dont le rôle se limite à la traduction sémantique. Toutes les décisions
@@ -1152,6 +1218,23 @@ sécurité des LLM d'un problème de réglage en une discipline architecturale.
     Management Framework (AI RMF 1.0) », NIST, 2023.
 15. Union européenne, « Règlement (UE) 2024/1689 (Règlement sur l'intelligence
     artificielle) », 2024.
+16. Anthropic, « Disrupting the first reported AI-orchestrated cyber espionage campaign »,
+    nov. 2025. https://www.anthropic.com/news/disrupting-AI-espionage
+17. VentureBeat, « 12 AI defenses claimed near-zero attack success; researchers broke all of
+    them », oct. 2025.
+    https://venturebeat.com/security/12-ai-defenses-claimed-near-zero-attack-success-researchers-broke-all-of-them
+18. « Attention Tracker: Detecting Prompt Injection Attacks in LLMs », arXiv:2411.00348,
+    2024.
+19. « How Vulnerable Are AI Agents to Indirect Prompt Injections? Insights from a
+    Large-Scale Public Competition », arXiv:2603.15714, 2026.
+20. Picus Security, « What Are AI-Powered Cyberattacks? Inside Machine-Speed Threats »
+    (VILLAGER ; HexStrike / CVE-2025-7775), 2025.
+    https://www.picussecurity.com/resource/blog/what-are-ai-powered-cyberattacks-inside-machine-speed-threats
+21. Industrial Cyber, « Booz Allen warns AI-driven cyberattacks outpace human-driven
+    defenses across critical infrastructure », 2025.
+    https://industrialcyber.co/ai/booz-allen-warns-ai-driven-cyberattacks-outpace-human-driven-defenses-across-critical-infrastructure/
+22. Sify, « AI vs AI: New Cybersecurity Battlefield Where No Humans Are in the Loop », 2025.
+    https://www.sify.com/ai-analytics/ai-vs-ai-new-cybersecurity-battlefield-where-no-humans-are-in-the-loop/
 
-> **Note.** Les identifiants arXiv doivent être re-vérifiés avant toute soumission
-> formelle.
+> **Note.** Les identifiants arXiv et les sources en ligne doivent être re-vérifiés avant
+> toute soumission formelle.
