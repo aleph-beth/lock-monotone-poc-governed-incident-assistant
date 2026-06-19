@@ -1,73 +1,82 @@
-# Lock-Monotone PoC — Documentation technique
+# Lock-Monotone PoC — Technical Documentation
 
-## Définition courte
-Lock-Monotone est une architecture de sécurité pour systèmes intégrant des LLM. Elle sépare la compréhension d’une requête (traduction ACTION/KNOWLEDGE) de l’autorisation d’accès et d’exécution, qui restent déterministes et contrôlées par du code. Les capacités ne peuvent jamais augmenter au fil du pipeline.
+> 🇫🇷 Une version française de ce document est disponible : [README_FR.md](README_FR.md)
 
-## Problème de sécurité résolu
-Lock-Monotone réduit les risques suivants, sans dépendre du comportement interne du modèle :
+## Short definition
+Lock-Monotone is a security architecture for systems that integrate LLMs. It separates the *understanding* of a request (ACTION/KNOWLEDGE translation) from the *authorization* of access and execution, which remain deterministic and controlled by code. Capabilities can never grow as the request moves through the pipeline.
 
-- **Prompt injection** : la décision se fait sur une traduction structurée, pas sur le texte libre.
-- **Confused deputy** : les accès sont décidés par un moteur de politiques externe au LLM.
-- **Escalation par raisonnement** : les capacités restent monotones et ne peuvent pas s’élargir.
+## Security problem solved
+Lock-Monotone reduces the following risks without relying on the model's internal behavior:
 
-## Principe ACTION / KNOWLEDGE
-Une requête utilisateur est traduite en un artefact structuré composé de deux sections :
+- **Prompt injection**: decisions are made on a structured translation, not on free text.
+- **Confused deputy**: access is decided by a policy engine external to the LLM.
+- **Escalation through reasoning**: capabilities stay monotone and cannot widen.
 
-- **ACTION** : l’effet demandé (procédure, cible, type de sortie).
-- **KNOWLEDGE** : les sources ou catégories de connaissances nécessaires.
+## ACTION / KNOWLEDGE principle
+A user request is translated into a structured artifact made of two sections:
 
-Le reste du pipeline traite uniquement cette traduction.
+- **ACTION**: the requested effect (procedure, target, output type).
+- **KNOWLEDGE**: the sources or knowledge categories required.
 
-## Vue d’ensemble du pipeline
-Pipeline strictement unidirectionnel :
+The rest of the pipeline operates only on this translation.
 
-1. Prompt utilisateur
-2. LLM amont → traduction ACTION/KNOWLEDGE
-3. Validation & canonicalisation déterministes
-4. Policy Engine (décision fermée)
-5. Accès connaissance contrôlé (connecteurs bornés)
-6. LLM aval (génération contrainte)
-7. Audit (traçabilité complète)
+## Pipeline overview
+A strictly unidirectional pipeline:
 
-## Ce que Lock-Monotone est / n’est pas
-**Lock-Monotone est :**
+1. User prompt
+2. Upstream LLM → ACTION/KNOWLEDGE translation
+3. Deterministic validation & canonicalization
+4. Policy Engine (closed decision)
+5. Controlled knowledge access (bounded connectors)
+6. Downstream LLM (constrained generation)
+7. Audit (full traceability)
 
-- Une architecture de sécurité déterministe pour LLM.
-- Un mécanisme d’autorisation basé sur une traduction structurée.
-- Un pipeline à capacités monotones.
+## What Lock-Monotone is / is not
+**Lock-Monotone is:**
 
-**Lock-Monotone n’est pas :**
+- A deterministic security architecture for LLMs.
+- An authorization mechanism based on a structured translation.
+- A pipeline with monotone capabilities.
 
-- Un modèle LLM « sécurisé » par magie.
-- Un système qui fait confiance au raisonnement interne du modèle.
-- Un mécanisme d’élévation automatique des droits.
+**Lock-Monotone is not:**
 
-## Mini exemple conceptuel
-**Prompt** : « Donne-moi la procédure d’onboarding pour le compte de service Finance. »
+- An LLM model made "secure" by magic.
+- A system that trusts the model's internal reasoning.
+- A mechanism for automatic privilege elevation.
 
-**Traduction (IR)**
+## Minimal conceptual example
+**Prompt**: "Give me the onboarding procedure for the Finance service account."
 
-- ACTION : `procedure.read`
-- KNOWLEDGE : `policies/hr/onboarding` (catégorie autorisée)
+**Translation (IR)**
 
-**Décision**
+- ACTION: `procedure.read`
+- KNOWLEDGE: `policies/hr/onboarding` (authorized category)
 
-- Policy Engine : `ALLOW` pour le rôle `hr-analyst`
-- Enveloppe de capacités réduite à `policies/hr/*`
+**Decision**
 
-**Réponse**
+- Policy Engine: `ALLOW` for role `hr-analyst`
+- Capability envelope reduced to `policies/hr/*`
 
-- LLM aval génère un résumé uniquement à partir des sources autorisées.
+**Response**
 
-## Périmètre du PoC
-Le PoC couvre :
+- The downstream LLM generates a summary only from authorized sources.
 
-- La définition de l’IR ACTION/KNOWLEDGE.
-- La validation, la canonicalisation et la décision de politiques.
-- Des connecteurs de connaissance bornés.
-- L’audit de bout en bout.
+## PoC scope
+The PoC covers:
 
-Le PoC ne couvre pas :
+- The definition of the ACTION/KNOWLEDGE IR.
+- Validation, canonicalization, and the policy decision.
+- Bounded knowledge connectors.
+- End-to-end audit.
 
-- L’entraînement ou la modification d’un LLM.
-- L’exécution d’actions sensibles en production.
+The PoC does not cover:
+
+- Training or modifying an LLM.
+- Executing sensitive actions in production.
+
+## Repository structure
+- [`Lock-Monotone-EN.md`](Lock-Monotone-EN.md) — Consolidated research article (English).
+- [`Lock-Monotone-FR.md`](Lock-Monotone-FR.md) — Consolidated research article (French).
+- [`Lock-Monotone.tex`](Lock-Monotone.tex) — LaTeX source of the article.
+- [`docs/`](docs) — Detailed technical documentation (context, use case, security goals, intermediate representation, architecture, policy engine, controlled RAG, auditability, attack scenarios, readiness checklist).
+- [`LICENSE`](LICENSE) — Project license.
