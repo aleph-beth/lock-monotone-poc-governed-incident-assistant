@@ -200,6 +200,13 @@ model. Section 11 details the relationship. In summary, this paper contributes:
 - a **proposed cross-layer evaluation methodology** (UAR/SLR/DTC) deferred to future work
   (Section 15).
 
+**Compact statement.** In one sentence: prompt-based security fails because it makes the
+language of policy and the language of attack coincide; Lock-Monotone normalizes intent into
+a finite IR, enforces policy over that closed alphabet deterministically, and guarantees by
+monotonicity that no later step reintroduces capability — so robustness to synonyms becomes
+a **property of normalization** rather than of the prompt author's skill, and the decision
+becomes **auditable by construction** (traceable, replayable, formally verifiable).
+
 We stress that the present paper is an architectural framework. Quantitative evaluation is
 deferred; no empirical results are claimed here.
 
@@ -299,6 +306,40 @@ sequence of governed translations, Lock-Monotone distributes responsibility acro
 architectural stages rather than concentrating it in a single probabilistic decision
 point — aligning with compiler pipelines and policy-governed execution environments, where
 safety emerges from staged validation.
+
+### 3.4 Why Prompt-Based Security Is Lexical — and the Closed Alphabet That Breaks It
+
+Classical prompt-based security fails because it makes the *language of policy* and the
+*language of attack* coincide: both are natural language. When security is written into the
+system prompt ("never exfiltrate", "never transfer data"), the rule lives in the **same
+lexical space** as the attack. The instruction can only "cover" specific strings, and the
+attacker simply steps outside that coverage:
+
+- **synonymy** — *exfiltrate* → *copy to / relay / forward / mirror*;
+- **periphrasis / obfuscation** — describing the action without naming it;
+- **register shift** — encoding, another language, a fictional role.
+
+Worse, the arbiter of these rules is itself a **non-deterministic LLM**: one can neither
+enumerate the infinite set of reformulations nor prove the model will refuse next time.
+Stated this way, security is an **unfalsifiable claim**.
+
+Lock-Monotone breaks the coincidence by **normalizing intent into the finite IR before any
+decision**: all synonyms of one action collapse onto a **single canonical symbol**.
+
+```text
+"exfiltrate"  ┐
+"copy to"     ┤
+"relay"       ┼──►  ACTION:DATA_EXFIL
+"forward"     ┤
+"mirror"      ┘
+```
+
+The decision then no longer reads text; it reads a **closed alphabet**. The capability
+firewall is therefore deterministic, and adding a business or security rule means adding one
+line over a finite vocabulary — **with no model retraining**. Robustness to synonyms becomes
+a **property of normalization**, not of the prompt author's wording skill. The rules are
+thereby **decoupled from natural language**: this is the mainspring of the approach,
+developed formally by the typed IR (Section 6) and the closed nomenclature (Section 14).
 
 ---
 
@@ -668,6 +709,23 @@ tool gateway and compliance layers. In this framing, **translation errors cannot
 unauthorized execution** — they can only yield over-restriction (unnecessary denials),
 which is a safe failure mode.
 
+### 9.5 What Moves, and What Does Not Disappear
+
+Security is not made *free* — it is **relocated**. The system no longer asks the LLM to
+*refuse correctly* (undecidable, bypassable); it asks the **translation to be faithful**.
+The residual attack surface therefore concentrates on a **single point**: can an adversary
+force the translator to emit a *wrong or incomplete* IR — an under-translation, a missing
+action, a wrong mapping? This is why the **true benchmark is NL→IR fidelity**, not a block
+rate. Two claims must be kept sharply distinct:
+
+| Claim | True? |
+|---|---|
+| "Adding rules requires zero training" | **True**, and significant |
+| "System security requires zero effort" | **False** — the effort moves to guaranteeing the translation layer |
+
+It is precisely this boundary that motivates the evaluation methodology of Section 15:
+measure translation fidelity, not a refusal rate.
+
 ---
 
 ## 10. Cross-Layer Threat Model and Mitigation
@@ -919,6 +977,43 @@ rather than an exception. Requests requiring review are surfaced with their stru
 representations and constraints. Human intervention does not bypass architectural
 invariants: operator decisions are recorded, auditable, and subject to the same monotonic
 capability constraints as automated ones.
+
+### 13.5 From an Unauditable Guard to a Verifiable Property
+
+A natural-language guard is **structurally unauditable**: one cannot prove *why* it refused,
+*that* it will refuse, or *what* it covers — the justification lives in the weights, opaque.
+Because the Lock-Monotone decision is **deterministic over a finite alphabet**, it is
+auditable by construction along five axes:
+
+1. **Traceability** — every allow/deny is the firing of a **named rule** over a **named
+   canonical symbol**: a readable log line, `input → IR → rule R_k → decision`.
+2. **Explainability** — the cause lives in the **language of the policy**, not in "the model
+   sensed it was risky"; one can cite the rule that blocked.
+3. **Determinism / replayability** — same IR → same decision, reproducible for forensics and
+   regression testing; an incident can be **replayed**.
+4. **Formal verifiability** — a rule set over a finite alphabet is a **decidable** object;
+   coverage, absence of contradiction, and the monotonicity property itself can be proven
+   *statically*, before deployment.
+5. **Separation of audit responsibilities** — the audit **factors** into two independent
+   questions with different methods: (a) is the translation faithful? → an **empirical
+   NL→IR benchmark** (Section 15); (b) is the rule set correct? → **formal verification**
+   over a finite alphabet. One no longer audits a monolithic black box, but **two separable,
+   individually tractable components**.
+
+The security of an NL guard is an **unfalsifiable claim**; that of Lock-Monotone is a
+**verifiable property**. Auditability is not a bolted-on feature: it is **the same
+property** — determinism over a finite IR — viewed through the compliance lens.
+
+### 13.6 Bridge to Compliance and the SIEM
+
+The IR together with the decision log **are** clean, structured telemetry. They map
+naturally to event schemas such as **OCSF** and detection formats such as **Sigma**. A
+natural-language guard produces **no structured audit trail**; Lock-Monotone produces one by
+construction — which is what makes it presentable to a CISO or an external auditor, and
+compatible with regulatory regimes such as the EU AI Act and DORA, as well as sector
+certifications for regulated data (e.g., France's PASSI and HDS). In the SIEM example of
+Section 11, this means the very decisions that govern the analytic LLM become first-class,
+queryable security events.
 
 ---
 
