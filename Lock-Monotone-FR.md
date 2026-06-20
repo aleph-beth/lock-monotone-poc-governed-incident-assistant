@@ -212,6 +212,14 @@ l'autorité au modèle. La section 11 détaille la relation. En résumé, cet ar
 - une **méthodologie d'évaluation transversale proposée** (UAR/SLR/DTC) reportée aux
   travaux futurs (section 15).
 
+**Formulation compacte.** En une phrase : le prompting sécuritaire échoue parce qu'il fait
+coïncider le langage de la politique et le langage de l'attaque ; Lock-Monotone normalise
+l'intention vers une RI finie, applique la politique sur cet alphabet fermé de façon
+déterministe, et garantit par monotonie qu'aucune étape postérieure ne réintroduit de
+capacité — la robustesse aux synonymes devient une **propriété de la normalisation**, et non
+de l'habileté du rédacteur de prompt, et la décision devient **auditable par construction**
+(traçable, rejouable, vérifiable formellement).
+
 Nous insistons : le présent article est un cadre architectural. L'évaluation quantitative
 est reportée ; aucun résultat empirique n'est revendiqué ici.
 
@@ -315,6 +323,43 @@ comme une séquence de traductions gouvernées, Lock-Monotone répartit la respo
 entre des étapes architecturales plutôt que de la concentrer en un point de décision
 probabiliste unique — à l'image des pipelines de compilation et des environnements
 d'exécution gouvernés par des politiques, où la sûreté émerge d'une validation par étapes.
+
+### 3.4 La sécurité par prompt est lexicale — et l'alphabet fermé qui la brise
+
+Le prompting sécuritaire classique échoue parce qu'il fait coïncider le *langage de la
+politique* et le *langage de l'attaque* : tous deux sont du langage naturel. Quand la
+sécurité est écrite dans le prompt système (« interdit d'exfiltrer », « ne jamais transférer
+de données »), la règle vit dans le **même espace lexical** que l'attaque. La consigne ne
+peut « couvrir » que des chaînes de caractères, et l'attaquant n'a qu'à sortir de cette
+couverture :
+
+- **synonymie** — *exfiltrer* → *copier vers / relayer / faire suivre / mettre en miroir* ;
+- **périphrase / obfuscation** — décrire l'action sans la nommer ;
+- **changement de registre** — encodage, autre langue, rôle fictif.
+
+Pire, l'arbitre de ces règles est lui-même un **LLM non déterministe** : on ne peut ni
+énumérer l'infini des reformulations, ni prouver qu'il refusera la prochaine fois. Ainsi
+formulée, la sécurité est une **affirmation infalsifiable**.
+
+Lock-Monotone brise cette coïncidence en **normalisant l'intention vers la RI finie avant
+toute décision** : tous les synonymes d'une même action s'effondrent sur **un seul symbole
+canonique**.
+
+```text
+"exfiltrer"        ┐
+"copier vers"      ┤
+"relayer"          ┼──►  ACTION:DATA_EXFIL
+"faire suivre"     ┤
+"mettre en miroir" ┘
+```
+
+La décision ne lit alors plus du texte : elle lit un **alphabet fermé**. Le pare-feu de
+capacités est donc déterministe, et ajouter une règle métier ou sécuritaire revient à
+ajouter une ligne sur un vocabulaire fini — **sans réentraînement du modèle**. La robustesse
+aux synonymes devient une **propriété de la normalisation**, et non de l'habileté du
+rédacteur de prompt. Les règles sont ainsi **découplées de la langue naturelle** : c'est là
+le ressort de l'approche, développé formellement par la RI typée (section 6) et la
+nomenclature fermée (section 14).
 
 ---
 
@@ -703,6 +748,23 @@ d'outils et les couches de conformité. Dans ce cadre, **les erreurs de traducti
 peuvent produire d'exécution non autorisée** — elles ne peuvent produire qu'une
 sur-restriction (refus inutiles), qui est un mode de défaillance sûr.
 
+### 9.5 Ce qui se déplace, ce qui ne disparaît pas
+
+La sécurité ne devient pas *gratuite* — elle se **déplace**. On ne demande plus au LLM de
+*refuser correctement* (indécidable, contournable) ; on demande à la **traduction d'être
+fidèle**. La surface d'attaque résiduelle se concentre dès lors sur **un seul point** :
+peut-on forcer le traducteur à émettre une RI *fausse ou incomplète* — sous-traduction,
+action manquante, mauvais mapping ? D'où le fait que le **vrai banc d'essai est la fidélité
+NL→RI**, et non un taux de blocage. Deux affirmations doivent être nettement distinguées :
+
+| Affirmation | Vrai ? |
+|---|---|
+| « Ajouter des règles ne demande aucun entraînement » | **Vrai**, et fort |
+| « La sécurité du système ne demande aucun effort » | **Faux** — l'effort se déplace vers la garantie de la couche de traduction |
+
+C'est précisément cette frontière qui motive la méthodologie d'évaluation de la section 15 :
+mesurer la fidélité de la traduction, et non un taux de refus.
+
 ---
 
 ## 10. Modèle de menace transversal et mitigation
@@ -971,6 +1033,46 @@ remontées avec leurs représentations structurées et leurs contraintes. L'inte
 humaine ne contourne pas les invariants architecturaux : les décisions des opérateurs sont
 enregistrées, auditables et soumises aux mêmes contraintes de monotonie des capacités que
 les décisions automatisées.
+
+### 13.5 Du garde non auditable à la propriété vérifiable
+
+Un garde en langage naturel est **structurellement non auditable** : on ne peut prouver
+*pourquoi* il a refusé, *qu'*il refusera, ni *ce qu'*il couvre — la justification vit dans
+les poids, opaque. Parce que la décision Lock-Monotone est **déterministe sur un alphabet
+fini**, elle est auditable par construction selon cinq axes :
+
+1. **Traçabilité** — chaque allow/deny est le déclenchement d'une **règle nommée** sur un
+   **symbole canonique nommé** : une ligne de log lisible, `entrée → RI → règle R_k →
+   décision`.
+2. **Explicabilité** — la cause vit dans le **langage de la politique**, et non dans « le
+   modèle a senti que c'était risqué » ; on peut citer la règle qui a bloqué.
+3. **Déterminisme / rejouabilité** — même RI → même décision, reproductible pour le forensic
+   et les tests de non-régression ; un incident peut être **rejoué**.
+4. **Vérifiabilité formelle** — un jeu de règles sur alphabet fini est un objet
+   **décidable** ; couverture, absence de contradiction et la propriété de monotonie
+   elle-même peuvent être prouvées *statiquement*, avant déploiement.
+5. **Séparation des responsabilités d'audit** — l'audit se **factorise** en deux questions
+   indépendantes, à méthodes différentes : (a) la traduction est-elle fidèle ? → un
+   **benchmark empirique NL→RI** (section 15) ; (b) le jeu de règles est-il correct ? → une
+   **vérification formelle** sur alphabet fini. On n'audite plus une boîte noire
+   monolithique, mais **deux composants séparables, chacun tractable**.
+
+La sécurité d'un garde NL est une **affirmation infalsifiable** ; celle de Lock-Monotone est
+une **propriété vérifiable**. L'auditabilité n'est pas une fonctionnalité rapportée : c'est
+**la même propriété** — le déterminisme sur une RI finie — vue sous l'angle de la
+conformité.
+
+### 13.6 Pont vers la conformité et le SIEM
+
+La RI et le journal de décision **sont** une télémétrie propre et structurée. Ils se mappent
+naturellement vers des schémas d'événements comme **OCSF** et des formats de détection comme
+**Sigma**. Un garde en langage naturel ne produit **aucune piste d'audit structurée** ;
+Lock-Monotone en produit une par construction — c'est ce qui le rend présentable devant un
+RSSI ou un commissaire aux comptes, et compatible avec des régimes réglementaires comme
+l'AI Act de l'UE et DORA, ainsi qu'avec les qualifications sectorielles pour données
+réglementées (p. ex. PASSI et HDS en France). Dans l'exemple SIEM de la section 11, cela
+signifie que les décisions mêmes qui gouvernent le LLM analytique deviennent des événements
+de sécurité de premier ordre, interrogeables.
 
 ---
 
